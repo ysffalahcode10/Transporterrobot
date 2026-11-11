@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transporter Controller</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#07101f;--ink:#eaf3ff;--soft:#9fb2cc;--aqua:#6ff2d8;--amber:#ffb84d;--coral:#ff7a6b}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100vh;background:radial-gradient(120% 90% at 50% 0%,#12274a 0%,var(--bg) 60%);color:var(--ink);font-family:'Nunito',system-ui,sans-serif}
+#stage{position:fixed;inset:0;width:100%;height:100%;z-index:0;touch-action:none;cursor:grab}
+#stage:active{cursor:grabbing}
+.ui{position:relative;z-index:1;pointer-events:none;max-width:1320px;margin:0 auto;padding:22px 22px 40px}
+.ui>*{pointer-events:auto}
+.layout{display:grid;grid-template-columns:minmax(300px,440px) 1fr minmax(280px,340px);gap:22px;margin-top:22px;align-items:start}
+.gap{pointer-events:none;min-height:60vh}
+@media(max-width:960px){.layout{grid-template-columns:1fr}.gap{order:-1;min-height:38vh}}
+
+/* ---------- Liquid glass ---------- */
+.glass{position:relative;border-radius:30px;background:linear-gradient(135deg,rgba(255,255,255,.17),rgba(255,255,255,.04) 55%,rgba(255,255,255,.1));
+backdrop-filter:blur(22px) saturate(190%) brightness(1.08);-webkit-backdrop-filter:blur(22px) saturate(190%) brightness(1.08);
+border:1px solid rgba(255,255,255,.2);
+box-shadow:inset 0 1.5px 0 rgba(255,255,255,.55),inset 0 -1.5px 0 rgba(255,255,255,.1),inset 0 0 30px rgba(255,255,255,.06),0 30px 70px rgba(0,0,0,.45),0 6px 18px rgba(0,0,0,.25);
+transform:perspective(1100px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));transition:transform .3s ease;overflow:hidden}
+.glass::before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;background:radial-gradient(420px circle at var(--mx,25%) var(--my,0%),rgba(255,255,255,.2),transparent 55%)}
+.glass::after{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;padding:1px;background:linear-gradient(135deg,rgba(255,255,255,.7),transparent 30%,transparent 70%,rgba(111,242,216,.5));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.pad{padding:26px 28px}
+
+header.glass{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;padding:18px 26px;border-radius:999px}
+h1{font-family:'Baloo 2',sans-serif;font-size:30px;font-weight:800;margin:0;letter-spacing:-.3px;line-height:1.1}
+.sub{margin:2px 0 0;color:var(--soft);font-size:14px}
+.connect-area{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.pill{display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);font-size:13px;font-weight:700;color:var(--soft)}
+.dot{width:9px;height:9px;border-radius:50%;background:#51607a}
+.pill.online{color:var(--aqua)}
+.pill.online .dot{background:var(--aqua);box-shadow:0 0 0 4px rgba(111,242,216,.2),0 0 14px var(--aqua)}
+.key{font-family:'Baloo 2',sans-serif;font-weight:600;color:#fff;border:1px solid rgba(255,255,255,.35);cursor:pointer;
+background:linear-gradient(180deg,rgba(255,255,255,.34),rgba(255,255,255,.08) 50%,rgba(255,255,255,.14));
+box-shadow:inset 0 1.5px 0 rgba(255,255,255,.7),inset 0 -8px 14px rgba(0,0,0,.18),0 6px 0 rgba(4,10,24,.55),0 14px 22px rgba(0,0,0,.35);
+transition:transform .1s ease,box-shadow .1s ease}
+.key:active,.key.key-active,.key.pressed{transform:translateY(5px);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.5),inset 0 -4px 8px rgba(0,0,0,.2),0 1px 0 rgba(4,10,24,.55),0 4px 8px rgba(0,0,0,.3)}
+.connect-btn{font-size:15px;padding:12px 26px;border-radius:999px;background-color:rgba(111,242,216,.38);background-blend-mode:overlay;animation:glow 2.6s ease-in-out infinite}
+.connect-btn.connected{background-color:rgba(255,122,107,.5)}
+@keyframes glow{50%{filter:drop-shadow(0 0 12px rgba(111,242,216,.7))}}
+
+.card-title{font-family:'Baloo 2',sans-serif;font-size:19px;font-weight:700;margin:0 0 2px}
+.card-sub{font-size:13px;color:var(--soft);margin:0 0 18px}
+.well{background:rgba(5,12,28,.32);border:1px solid rgba(255,255,255,.12);border-radius:20px;box-shadow:inset 0 3px 10px rgba(0,0,0,.35),inset 0 -1px 0 rgba(255,255,255,.1)}
+.power-row{display:flex;align-items:center;justify-content:space-between;padding:14px 18px}
+.power-label{font-weight:800;font-size:15px}.power-hint{font-size:12.5px;color:var(--soft);margin-top:2px}
+.toggle{position:relative;width:62px;height:34px;flex-shrink:0;border:1px solid rgba(255,255,255,.25);border-radius:999px;cursor:pointer;background:rgba(5,12,28,.5);box-shadow:inset 0 3px 8px rgba(0,0,0,.5);transition:background .25s}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 32% 26%,#fff,#cfe3ff 45%,#7f95b8);box-shadow:0 4px 8px rgba(0,0,0,.45);transition:transform .25s cubic-bezier(.3,1.5,.5,1)}
+.toggle.on{background:rgba(111,242,216,.55);box-shadow:inset 0 3px 8px rgba(0,0,0,.3),0 0 18px rgba(111,242,216,.55)}
+.toggle.on::after{transform:translateX(28px)}
+.speed-block{margin-top:20px}
+.speed-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;font-weight:800;font-size:15px}
+.speed-header .value{font-family:'Baloo 2',sans-serif;color:var(--amber);font-size:20px}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:12px;border-radius:999px;outline:none;cursor:pointer;
+background:linear-gradient(90deg,var(--amber) var(--fill,50%),rgba(5,12,28,.5) var(--fill,50%));box-shadow:inset 0 2px 6px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.15)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 32% 26%,#fff,#ffe2ae 40%,#d98a1f);box-shadow:0 5px 10px rgba(0,0,0,.5),0 0 14px rgba(255,184,77,.6)}
+input[type=range]::-moz-range-thumb{width:28px;height:28px;border:0;border-radius:50%;background:radial-gradient(circle at 32% 26%,#fff,#ffe2ae 40%,#d98a1f);box-shadow:0 5px 10px rgba(0,0,0,.5)}
+.speed-scale{display:flex;justify-content:space-between;font-size:11.5px;color:var(--soft);margin-top:7px}
+.move-steer{display:grid;grid-template-columns:repeat(auto-fit,minmax(176px,1fr));gap:16px;margin-top:22px}
+@media(max-width:520px){.move-steer{grid-template-columns:1fr}}
+.sub-card{padding:14px 12px;display:flex;flex-direction:column;align-items:center}
+.sub-title{font-weight:800;font-size:14px;align-self:flex-start;margin-bottom:14px}
+.dpad{display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(3,48px);gap:8px}
+.dpad-btn{border-radius:16px;font-size:18px;display:flex;align-items:center;justify-content:center;padding:0}
+.dpad-up{grid-area:1/2}.dpad-left{grid-area:2/1}.dpad-center{grid-area:2/2;font-size:12px;background-color:rgba(255,122,107,.6);background-blend-mode:overlay}.dpad-right{grid-area:2/3}.dpad-down{grid-area:3/2}
+.joystick-outer{width:150px;height:150px;border-radius:50%;position:relative;display:flex;align-items:center;justify-content:center;touch-action:none;cursor:grab;user-select:none;
+background:radial-gradient(circle at 50% 40%,rgba(5,12,28,.75),rgba(5,12,28,.35));border:2px solid rgba(255,255,255,.22);box-shadow:inset 0 8px 18px rgba(0,0,0,.6),inset 0 -2px 0 rgba(255,255,255,.18),0 8px 20px rgba(0,0,0,.3)}
+.idle-ring{position:absolute;top:50%;left:50%;width:58px;height:58px;border-radius:50%;border:2px solid var(--aqua);opacity:0;pointer-events:none}
+.joystick-outer.idle .idle-ring{animation:ripple 2.2s ease-out infinite}
+.joystick-outer.idle .ring-2{animation-delay:1.1s}
+@keyframes ripple{0%{transform:translate(-50%,-50%) scale(1);opacity:.6}100%{transform:translate(-50%,-50%) scale(1.8);opacity:0}}
+.joystick-knob{width:62px;height:62px;border-radius:50%;position:relative;z-index:1;background:radial-gradient(circle at 32% 24%,#fff 0,#b8fff0 22%,var(--aqua) 50%,#0b7466 100%);box-shadow:0 14px 18px rgba(0,0,0,.5),inset 0 -6px 10px rgba(0,60,50,.45),0 0 22px rgba(111,242,216,.55)}
+.joystick-outer.idle .joystick-knob{animation:breathe 2.4s ease-in-out infinite}
+@keyframes breathe{50%{scale:1.06}}
+.axis{margin-top:12px;font-size:12.5px;color:var(--soft)}.axis b{color:var(--ink)}
+
+.log-body{background:rgba(5,12,28,.32);border:1px solid rgba(255,255,255,.12);box-shadow:inset 0 3px 10px rgba(0,0,0,.35);border-radius:20px;padding:14px;font-size:13.5px;min-height:240px;max-height:360px;overflow-y:auto;display:flex;flex-direction:column;gap:7px}
+.log-empty{margin:auto;color:var(--soft);text-align:center}
+.log-line{display:flex;gap:8px;padding:6px 10px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:12px;word-break:break-word}
+.ts{color:var(--soft);font-size:11.5px;white-space:nowrap}
+.clear-link{background:none;border:0;color:var(--soft);font-size:12.5px;text-decoration:underline;cursor:pointer;margin:10px 0 0 auto;display:block}
+.clear-link:hover{color:var(--ink)}
+.log-input-row{display:flex;gap:10px;margin-top:12px}
+.log-input-row input{flex:1;min-width:0;background:rgba(5,12,28,.4);border:1px solid rgba(255,255,255,.18);box-shadow:inset 0 2px 6px rgba(0,0,0,.4);border-radius:14px;padding:12px 14px;font:inherit;font-size:13.5px;color:var(--ink);outline:none}
+.log-input-row input:focus{border-color:var(--aqua)}
+.send-btn{font-size:14px;padding:0 20px;border-radius:14px}
+.note{margin:22px auto 0;max-width:760px;text-align:center;font-size:13.5px;color:var(--soft);padding:14px 22px;border-radius:22px}
+.note b{color:var(--ink)}
+:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.no3d #stage{display:none}
+.locked #app{display:none}
+.login-wrap{display:none;min-height:calc(100vh - 44px);align-items:center;justify-content:center}
+.locked .login-wrap{display:flex}
+.ui>.login-wrap{pointer-events:none}
+.login-card{pointer-events:auto;width:min(420px,100%);padding:30px 30px 26px}
+.login-card label{display:block;font-weight:800;font-size:13.5px;margin-bottom:14px}
+.login-card [hidden]{display:none}
+.login-card input{display:block;width:100%;margin-top:6px;background:rgba(5,12,28,.4);border:1px solid rgba(255,255,255,.18);box-shadow:inset 0 2px 6px rgba(0,0,0,.4);border-radius:14px;padding:13px 14px;font:inherit;font-weight:600;color:var(--ink);outline:none}
+.login-card input:focus{border-color:var(--aqua)}
+.pw{position:relative}.pw input{padding-right:76px}
+.eye{position:absolute;right:8px;bottom:7px;border:0;background:rgba(255,255,255,.12);color:var(--ink);border-radius:10px;padding:6px 11px;font:700 12px 'Nunito',sans-serif;cursor:pointer}
+.err{min-height:20px;margin:0 0 10px;color:var(--coral);font-size:13.5px;font-weight:700}
+.err:not(:empty){padding:9px 12px;border-radius:12px;background:rgba(255,122,107,.15);border:1px solid rgba(255,122,107,.4)}
+.login-card [hidden]{display:none!important}
+.login-btn{width:100%;font-size:16px;padding:13px;border-radius:16px;background-color:rgba(111,242,216,.4);background-blend-mode:overlay;animation:none}
+.login-btn:disabled{opacity:.6;cursor:wait}
+.shake{animation:shake .35s}
+@keyframes shake{25%{translate:-8px}75%{translate:8px}}
+.claw-btn{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;margin-top:22px;padding:13px;border-radius:18px;font-size:16px;background-color:rgba(255,184,77,.35);background-blend-mode:overlay}
+.kc{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:rgba(5,12,28,.45);box-shadow:inset 0 2px 4px rgba(0,0,0,.5);font-size:15px;color:var(--amber)}
+@media(max-width:600px){header.glass{border-radius:32px;padding:18px 22px}}
+.logout-btn{font-size:13px;padding:9px 16px;border-radius:999px}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body class="locked">
+<canvas id="stage" aria-label="3D view of the Transporter robot. Drag to orbit, scroll to zoom, click the robot to honk."></canvas>
+<div class="ui">
+  <div class="login-wrap">
+    <section class="glass tilt login-card" aria-label="Log in">
+      <h2 class="card-title">Welcome</h2>
+      <p class="card-sub">Enter your name and password to drive the Transporter.</p>
+      <div id="loginForm">
+        <label>Name<input id="userName" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="24" placeholder="Your name"></label>
+        <label>Password
+          <div class="pw"><input id="userPass" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="64" placeholder="Your password"><button type="button" class="eye" id="showPass">Show</button></div>
+        </label>
+        <p class="err" id="loginErr" role="alert"></p>
+        <button type="button" class="key login-btn" id="loginBtn">Log in</button>
+      </div>
+    </section>
+  </div>
+  <div id="app">
+  <header class="glass tilt">
+    <div>
+      <h1>Transporter</h1>
+      <p class="sub">Connect your micro:bit and drive it around.</p>
+    </div>
+    <div class="connect-area">
+      <div class="pill" id="statusPill"><span class="dot"></span><span id="statusText">Not connected</span></div>
+      <button class="key connect-btn" id="connectBtn">Connect</button>
+      <span class="pill" id="userPill"></span>
+      <button class="key logout-btn" id="logoutBtn">Log out</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section class="glass tilt pad">
+      <h2 class="card-title">Drive the robot</h2>
+      <p class="card-sub">Turn on the motor, set a speed, then steer with the keys, the stick or your arrow keys.</p>
+      <div class="well power-row">
+        <div><div class="power-label">Motor power</div><div class="power-hint" id="powerHint">Connect first to turn it on</div></div>
+        <button class="toggle" id="powerToggle" aria-label="Toggle motor power"></button>
+      </div>
+      <div class="speed-block">
+        <div class="speed-header"><span>Speed</span><span class="value" id="speedValue">50%</span></div>
+        <input type="range" id="speed" min="0" max="100" value="50" style="--fill:50%" aria-label="Speed">
+        <div class="speed-scale"><span>Slow</span><span>Fast</span></div>
+      </div>
+      <div class="move-steer">
+        <div class="well sub-card">
+          <div class="sub-title">Move</div>
+          <div class="dpad">
+            <button class="key dpad-btn dpad-up" data-dir="up" aria-label="Move forward">&#9650;</button>
+            <button class="key dpad-btn dpad-left" data-dir="left" aria-label="Turn left">&#9664;</button>
+            <button class="key dpad-btn dpad-center" data-dir="stop" aria-label="Stop">STOP</button>
+            <button class="key dpad-btn dpad-right" data-dir="right" aria-label="Turn right">&#9654;</button>
+            <button class="key dpad-btn dpad-down" data-dir="down" aria-label="Move backward">&#9660;</button>
+          </div>
+        </div>
+        <div class="well sub-card">
+          <div class="sub-title">Steer</div>
+          <div class="joystick-outer" id="joystickOuter">
+            <div class="idle-ring"></div><div class="idle-ring ring-2"></div>
+            <div class="joystick-knob" id="joystickKnob"></div>
+          </div>
+          <div class="axis">Position: <b id="axisCoords">0, 0</b></div>
+        </div>
+      </div>
+      <button type="button" class="key claw-btn" id="clawBtn" aria-label="Open or close the claw (key C)"><span class="kc">C</span><span id="clawLabel">Close claw</span></button>
+    </section>
+
+    <div class="gap"></div>
+
+    <section class="glass tilt pad">
+      <h2 class="card-title">What's happening</h2>
+      <p class="card-sub">Everything you do shows up here, including messages from the micro:bit.</p>
+      <div class="log-body" id="logBody"><div class="log-empty" id="logEmpty">Nothing yet. Connect and give it a try.</div></div>
+      <button class="clear-link" id="clearLogBtn">Clear log</button>
+      <div class="log-input-row">
+        <input type="text" id="commandInput" placeholder="Type a command to send…" aria-label="Command">
+        <button class="key send-btn" id="pushBtn">Send</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="glass note">
+    Works in <b>Chrome</b> or <b>Edge</b>. Turn on Bluetooth, make sure your micro:bit is on and nearby, then hit <b>Connect</b>.<br>
+    In the 3D view: drag to orbit, scroll to zoom, click the robot to honk. Drive up to a block, then press <b>C</b> (or tap the C button) to grab it, and again to drop it.
+  </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const connectBtn = $('connectBtn'), statusPill = $('statusPill'), statusText = $('statusText'),
+    powerToggle = $('powerToggle'), powerHint = $('powerHint'), speed = $('speed'), speedValue = $('speedValue'),
+    logBody = $('logBody'), clearLogBtn = $('clearLogBtn'), commandInput = $('commandInput'), pushBtn = $('pushBtn'),
+    joystickKnob = $('joystickKnob'), axisCoords = $('axisCoords'), outer = $('joystickOuter');
+  const dpadBtns = document.querySelectorAll('.dpad-btn');
+  const clawBtn = $('clawBtn'), clawLabel = $('clawLabel');
+  function onClaw(open) { clawLabel.textContent = open ? 'Close claw' : 'Open claw'; playPress(clawBtn); }
+  clawBtn.addEventListener('click', () => {
+    if (scene3d) scene3d.toggleClaw(); else addLog('The 3D view is not loaded, so the claw is unavailable.');
+  });
+
+  let connected = false, engaged = false, device = null, txCharacteristic = null, rxCharacteristic = null;
+  let isDragging = false, scene3d = null;
+  const typing = () => {
+    const a = document.activeElement;
+    return document.body.classList.contains('locked') || (a && a.tagName === 'INPUT' && (a.type === 'text' || a.type === 'password'));
+  };
+  const joy = { x: 0, y: 0 }, pad = { x: 0, y: 0 };
+
+  // Nordic UART Service (sama dengan LOFI Control)
+  const UART_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+  const TX_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+  const RX_CHAR_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+
+  function addLog(msg) {
+    const e = $('logEmpty'); if (e) e.remove();
+    const line = document.createElement('div');
+    line.className = 'log-line';
+    const ts = document.createElement('span'); ts.className = 'ts'; ts.textContent = new Date().toTimeString().split(' ')[0];
+    const tx = document.createElement('span'); tx.textContent = msg;
+    line.append(ts, tx); logBody.appendChild(line); logBody.scrollTop = logBody.scrollHeight;
+  }
+  function playPress(el) {
+    el.classList.remove('pressed'); void el.offsetWidth; el.classList.add('pressed');
+    setTimeout(() => el.classList.remove('pressed'), 160);
+  }
+
+  let gattQueue = Promise.resolve();
+  const queueGatt = op => (gattQueue = gattQueue.then(op, op));
+  function sendUART(data) {
+    const ok = rxCharacteristic && device && device.gatt && device.gatt.connected;
+    if (!ok) { console.warn('Belum terhubung ke micro:bit. Data batal dikirim:', data); return; }
+    queueGatt(() => rxCharacteristic.writeValue(new TextEncoder().encode(data + '\n'))
+      .catch(err => { console.error(err); addLog('Gagal kirim data: ' + err.message); }));
+  }
+  function handleIncomingData(e) { addLog('micro:bit: ' + new TextDecoder('utf-8').decode(e.target.value).trim()); }
+
+  async function connectDevice() {
+    try {
+      addLog('Mencari perangkat micro:bit...');
+      device = await navigator.bluetooth.requestDevice({
+        filters: [{ namePrefix: 'BBC micro:bit' }, { namePrefix: 'Calliope mini' }],
+        optionalServices: [UART_SERVICE_UUID]
+      });
+      addLog('Menghubungkan ke GATT server...');
+      device.addEventListener('gattserverdisconnected', () => { addLog('Bluetooth terputus.'); resetConnectionState(); });
+      const server = await device.gatt.connect();
+      addLog('Menemukan UART Service...');
+      const service = await server.getPrimaryService(UART_SERVICE_UUID);
+      addLog('Menghubungkan jalur komunikasi...');
+      txCharacteristic = await service.getCharacteristic(TX_CHAR_UUID);
+      rxCharacteristic = await service.getCharacteristic(RX_CHAR_UUID);
+      await txCharacteristic.startNotifications();
+      txCharacteristic.addEventListener('characteristicvaluechanged', handleIncomingData);
+      connected = true;
+      connectBtn.textContent = 'Disconnect'; connectBtn.classList.add('connected');
+      statusPill.classList.add('online'); statusText.textContent = 'Connected';
+      powerHint.textContent = 'Ready when you are';
+      scene3d && scene3d.setConn(true);
+      addLog('Tersambung ke micro:bit!');
+    } catch (err) {
+      console.error(err); addLog('Gagal terhubung: ' + err.message); resetConnectionState();
+    }
+  }
+  function disconnectDevice() {
+    if (device && device.gatt.connected) { addLog('Memutuskan koneksi...'); device.gatt.disconnect(); }
+    else resetConnectionState();
+  }
+  function resetConnectionState() {
+    connected = false; device = null; txCharacteristic = null; rxCharacteristic = null;
+    connectBtn.textContent = 'Connect'; connectBtn.classList.remove('connected');
+    statusPill.classList.remove('online'); statusText.textContent = 'Not connected';
+    powerHint.textContent = 'Connect first to turn it on';
+    scene3d && scene3d.setConn(false);
+    if (engaged) { engaged = false; powerToggle.classList.remove('on'); }
+  }
+
+  connectBtn.addEventListener('click', async () => { playPress(connectBtn); connected ? disconnectDevice() : await connectDevice(); });
+  powerToggle.addEventListener('click', () => {
+    engaged = !engaged; powerToggle.classList.toggle('on', engaged);
+    powerHint.textContent = engaged ? 'Motor is on' : (connected ? 'Ready when you are' : 'Connect first to turn it on');
+    addLog(engaged ? 'Motor turned on.' : 'Motor turned off.');
+    sendUART(engaged ? 'motor:1' : 'motor:0');
+  });
+  speed.addEventListener('input', () => { speed.style.setProperty('--fill', speed.value + '%'); speedValue.textContent = speed.value + '%'; });
+  speed.addEventListener('change', () => { addLog('Speed set to ' + speed.value + '%.'); sendUART('speed:' + speed.value); });
+
+  const padVec = { up: [0, 1], down: [0, -1], left: [-1, 0], right: [1, 0], stop: [0, 0] };
+  const labels = { up: 'Driving forward', down: 'Driving backward', left: 'Turning left', right: 'Turning right', stop: 'Stopped' };
+  dpadBtns.forEach(btn => {
+    const dir = btn.dataset.dir;
+    const release = () => { pad.x = 0; pad.y = 0; };
+    btn.addEventListener('pointerdown', () => {
+      playPress(btn); addLog(labels[dir] + '.'); sendUART(dir.toUpperCase());
+      pad.x = padVec[dir][0]; pad.y = padVec[dir][1];
+    });
+    btn.addEventListener('pointerup', () => { release(); sendUART(dir.toLowerCase()); });
+    btn.addEventListener('pointerleave', e => { if (e.buttons > 0) { release(); sendUART(dir.toLowerCase()); } });
+  });
+
+  clearLogBtn.addEventListener('click', () => { logBody.innerHTML = '<div class="log-empty" id="logEmpty">Nothing yet. Connect and give it a try.</div>'; });
+  function pushCommand() {
+    const val = commandInput.value.trim(); if (!val) return;
+    playPress(pushBtn); addLog('You sent: “' + val + '”'); sendUART(val); commandInput.value = '';
+  }
+  pushBtn.addEventListener('click', pushCommand);
+  commandInput.addEventListener('keydown', e => { if (e.key === 'Enter') pushCommand(); });
+
+  // ── Joystick ──
+  const maxRadius = 46; let lastSent = 0;
+  outer.classList.add('idle');
+  function clampToRadius(dx, dy) {
+    const d = Math.hypot(dx, dy);
+    return d > maxRadius ? { dx: dx * maxRadius / d, dy: dy * maxRadius / d } : { dx, dy };
+  }
+  function setKnob(dx, dy) {
+    joystickKnob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+    const nx = Math.round(dx / maxRadius * 100), ny = Math.round(-dy / maxRadius * 100);
+    joy.x = nx / 100; joy.y = ny / 100;
+    axisCoords.textContent = nx + ', ' + ny;
+    const now = Date.now();
+    if (now - lastSent > 150) { sendUART('joy:' + nx + ',' + ny); lastSent = now; }
+  }
+  const anyArrow = () => Object.values(arrowKeys).some(Boolean);
+  function snapBack() {
+    joystickKnob.style.transition = 'transform .2s ease';
+    setKnob(0, 0); sendUART('joy:0,0');
+    setTimeout(() => { joystickKnob.style.transition = ''; if (!isDragging && !anyArrow()) outer.classList.add('idle'); }, 210);
+  }
+  outer.addEventListener('pointerdown', e => {
+    e.preventDefault(); outer.setPointerCapture(e.pointerId);
+    isDragging = true; outer.classList.remove('idle'); joystickKnob.style.transition = ''; outer.style.cursor = 'grabbing';
+  });
+  outer.addEventListener('pointermove', e => {
+    if (!isDragging) return; e.preventDefault();
+    const r = outer.getBoundingClientRect();
+    const c = clampToRadius(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2));
+    setKnob(c.dx, c.dy);
+  });
+  outer.addEventListener('pointerup', () => {
+    if (!isDragging) return; isDragging = false; outer.style.cursor = 'grab';
+    anyArrow() ? applyArrowJoystick() : snapBack();
+  });
+  outer.addEventListener('pointercancel', () => { isDragging = false; outer.style.cursor = 'grab'; snapBack(); });
+
+  // ── Arrow keys ──
+  const arrowKeys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+  let arrowInterval = null; const KO = 40;
+  const dirMap = { ArrowUp: 'UP', ArrowDown: 'DOWN', ArrowLeft: 'LEFT', ArrowRight: 'RIGHT' };
+  function applyArrowJoystick() {
+    if (isDragging) return;
+    let dx = 0, dy = 0;
+    if (arrowKeys.ArrowUp) dy -= KO; if (arrowKeys.ArrowDown) dy += KO;
+    if (arrowKeys.ArrowLeft) dx -= KO; if (arrowKeys.ArrowRight) dx += KO;
+    const c = clampToRadius(dx, dy);
+    outer.classList.remove('idle'); joystickKnob.style.transition = ''; setKnob(c.dx, c.dy);
+  }
+  const hl = (dir, on) => { const b = document.querySelector('.dpad-btn[data-dir="' + dir.toLowerCase() + '"]'); if (b) b.classList.toggle('key-active', on); };
+  window.addEventListener('keydown', e => {
+    if (typing() || !(e.key in arrowKeys) || arrowKeys[e.key]) return;
+    e.preventDefault(); arrowKeys[e.key] = true;
+    const d = dirMap[e.key];
+    addLog(labels[d.toLowerCase()] + ' (arrow key).'); sendUART(d); hl(d, true); applyArrowJoystick();
+    if (!arrowInterval) arrowInterval = setInterval(applyArrowJoystick, 100);
+  });
+  window.addEventListener('keyup', e => {
+    if (typing() || !(e.key in arrowKeys)) return;
+    e.preventDefault(); arrowKeys[e.key] = false;
+    const d = dirMap[e.key]; sendUART(d.toLowerCase()); hl(d, false);
+    if (anyArrow()) applyArrowJoystick();
+    else { clearInterval(arrowInterval); arrowInterval = null; if (!isDragging) snapBack(); }
+  });
+
+  // ── Panel tilt + specular highlight ──
+  document.querySelectorAll('.tilt').forEach(el => {
+    el.addEventListener('pointermove', e => {
+      const r = el.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+      el.style.setProperty('--mx', x * 100 + '%'); el.style.setProperty('--my', y * 100 + '%');
+      if (isDragging) return;
+      el.style.setProperty('--ry', ((x - .5) * 4).toFixed(2) + 'deg'); el.style.setProperty('--rx', ((.5 - y) * 4).toFixed(2) + 'deg');
+    });
+    el.addEventListener('pointerleave', () => { el.style.setProperty('--rx', '0deg'); el.style.setProperty('--ry', '0deg'); });
+  });
+
+  // ── 3D scene ──
+  function init3d() {
+    const T = window.THREE;
+    if (!T) { document.body.classList.add('no3d'); addLog('3D view needs internet to load. The controls still work.'); return null; }
+    const cv = $('stage');
+    const R = new T.WebGLRenderer({ canvas: cv, antialias: true, alpha: true });
+    R.setPixelRatio(Math.min(devicePixelRatio, 2));
+    const S = new T.Scene(); S.fog = new T.FogExp2(0x07101f, .032);
+    const C = new T.PerspectiveCamera(42, 1, .1, 120);
+    S.add(new T.HemisphereLight(0xaee4ff, 0x0a1226, 1));
+    const dl = new T.DirectionalLight(0xffffff, 1.2); dl.position.set(5, 9, 6); S.add(dl);
+    const rimL = new T.PointLight(0x6ff2d8, 1.6, 24); rimL.position.set(-6, 4, -6); S.add(rimL);
+    const warmL = new T.PointLight(0xffb84d, 1.2, 24); warmL.position.set(7, 3, -5); S.add(warmL);
+    const M = (c, o) => new T.MeshPhysicalMaterial(Object.assign({ color: c, metalness: .5, roughness: .28, clearcoat: 1, clearcoatRoughness: .12 }, o || {}));
+
+    const floor = new T.Mesh(new T.CircleGeometry(18, 64), new T.MeshStandardMaterial({ color: 0x0b1830, roughness: .6, metalness: .4 }));
+    floor.rotation.x = -Math.PI / 2; S.add(floor);
+    const grid = new T.GridHelper(36, 36, 0x6ff2d8, 0x1f3b5c); grid.position.y = .01; grid.material.transparent = true; grid.material.opacity = .4; S.add(grid);
+    const ring = new T.Mesh(new T.RingGeometry(9.9, 10.05, 96), new T.MeshBasicMaterial({ color: 0x6ff2d8, side: T.DoubleSide }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = .02; S.add(ring);
+
+    // Robot
+    const robot = new T.Group(), rig = new T.Group(); robot.add(rig); S.add(robot);
+    const add = (g, m, x, y, z) => { const o = new T.Mesh(g, m); o.position.set(x, y, z); rig.add(o); return o; };
+    add(new T.BoxGeometry(1.8, .42, 2.7), M(0x2a4170), 0, .62, 0);
+    add(new T.BoxGeometry(1.9, .08, 2.8), M(0x6ff2d8, { emissive: 0x6ff2d8, emissiveIntensity: .6 }), 0, .4, 0);
+    const crate = add(new T.BoxGeometry(1.45, .75, 1.35), M(0xffb84d, { metalness: .2 }), 0, 1.2, -.5);
+    crate.add(new T.LineSegments(new T.EdgesGeometry(crate.geometry), new T.LineBasicMaterial({ color: 0xfff2d6 })));
+    add(new T.BoxGeometry(1.35, .5, .85), M(0x6ff2d8, { transparent: true, opacity: .5, metalness: .1, roughness: .05 }), 0, 1.0, .85);
+    const wheels = [];
+    [[1, .9], [-1, .9], [1, -.9], [-1, -.9]].forEach(p => {
+      const w = new T.Group(); w.position.set(p[0] * 1.0, .4, p[1]);
+      w.add(new T.Mesh(new T.CylinderGeometry(.4, .4, .32, 24).rotateZ(Math.PI / 2), M(0x10192b, { metalness: .1, roughness: .7, clearcoat: 0 })));
+      const h = new T.Mesh(new T.BoxGeometry(.34, .62, .1), M(0xffb84d)); w.add(h);
+      const h2 = h.clone(); h2.rotation.x = Math.PI / 2; w.add(h2);
+      rig.add(w); wheels.push({ g: w, s: p[0] });
+    });
+    const lampMat = new T.MeshBasicMaterial({ color: 0x334055 });
+    add(new T.SphereGeometry(.14, 16, 16), lampMat, -.55, .65, 1.38); add(new T.SphereGeometry(.14, 16, 16), lampMat, .55, .65, 1.38);
+    const head = new T.PointLight(0xfff2c9, 0, 9); head.position.set(0, .8, 2.2); rig.add(head);
+    const glow = new T.PointLight(0x6ff2d8, 0, 6); glow.position.set(0, .2, 0); rig.add(glow);
+    add(new T.CylinderGeometry(.03, .03, .9), M(0xcfd8e6), .8, 1.2, -1.0);
+    const antMat = new T.MeshBasicMaterial({ color: 0xff7a6b });
+    add(new T.SphereGeometry(.09, 16, 16), antMat, .8, 1.7, -1.0);
+    // Capit (gripper) di depan
+    const claw = [];
+    const bump = add(new T.BoxGeometry(1.3, .22, .22), M(0x3a5590), 0, .72, 1.42); bump.userData.claw = true;
+    [1, -1].forEach(s => {
+      const p = new T.Group(); p.position.set(s * .5, .72, 1.5); p.userData.claw = true;
+      const bar = new T.Mesh(new T.BoxGeometry(.13, .15, 1.0), M(0xdfe8f8, { metalness: .8 })); bar.position.z = .5; p.add(bar);
+      const tip = new T.Mesh(new T.BoxGeometry(.55, .15, .13), M(0xffb84d)); tip.position.set(-s * .225, 0, 1.0); p.add(tip);
+      rig.add(p); claw.push({ g: p, s: s });
+    });
+    let clawOpen = true, clawA = .5, held = null;
+    // Objek yang bisa dicapit: [nama, geometri, warna, setengah tinggi, setengah lebar]
+    const specs = [
+      ['crate', new T.BoxGeometry(.5, .5, .5), 0xff7a6b, .25, .25],
+      ['barrel', new T.CylinderGeometry(.22, .22, .55, 20), 0x6ff2d8, .275, .2],
+      ['orb', new T.SphereGeometry(.27, 24, 20), 0xd9a8ff, .27, .26],
+      ['block', new T.BoxGeometry(.45, .45, .45), 0xffb84d, .225, .225]
+    ];
+    const items = [], holdPos = new T.Vector3(0, .85, 2.05), qI = new T.Quaternion();
+    for (let i = 0; i < 8; i++) {
+      const sp = specs[i % 4], a = i / 8 * 6.283, r = 3.5 + (i % 3) * 1.6;
+      const it = new T.Mesh(sp[1], M(sp[2], { metalness: .2, roughness: .3 }));
+      it.userData = { item: true, name: sp[0], h: sp[3], grip: sp[4] - .02, vy: 0, held: false };
+      it.position.set(Math.sin(a) * r, sp[3], Math.cos(a) * r); S.add(it); items.push(it);
+    }
+    const toggleClaw = () => {
+      clawOpen = !clawOpen; onClaw(clawOpen);
+      if (clawOpen) {
+        if (held) { S.attach(held); held.userData.held = false; held.userData.vy = 0; addLog('Dropped the ' + held.userData.name + '.'); held = null; }
+        else addLog('Claw opened.');
+        return;
+      }
+      const gp = new T.Vector3(Math.sin(robot.rotation.y), 0, Math.cos(robot.rotation.y)).multiplyScalar(2.1).add(robot.position);
+      let best = null, bd = 1.1;
+      items.forEach(it => {
+        const d = Math.hypot(it.position.x - gp.x, it.position.z - gp.z);
+        if (!it.userData.held && d < bd && it.position.y < it.userData.h + .3) { bd = d; best = it; }
+      });
+      if (best) { best.userData.held = true; held = best; rig.attach(best); addLog('Picked up the ' + best.userData.name + '.'); }
+      else addLog('Claw closed. Nothing in it.');
+    };
+    addEventListener('keydown', e => { if (!typing() && (e.key === 'c' || e.key === 'C')) toggleClaw(); });
+    const shadow = new T.Mesh(new T.CircleGeometry(1.7, 32), new T.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: .5 }));
+    shadow.scale.set(.85, 1.4, 1); shadow.rotation.x = -Math.PI / 2; shadow.position.y = .03; robot.add(shadow);
+
+    // Floating glass shapes
+    const shards = [], geos = [new T.IcosahedronGeometry(.55, 0), new T.OctahedronGeometry(.6), new T.TorusGeometry(.42, .15, 14, 28), new T.TetrahedronGeometry(.6), new T.TorusKnotGeometry(.35, .12,64, 10)];
+    const cols = [0x6ff2d8, 0xffb84d, 0xff7a6b, 0x8fb4ff, 0xd9a8ff];
+    for (let i = 0; i < 9; i++) {
+      const m = new T.Mesh(geos[i % 5], M(cols[i % 5], { transparent: true, opacity: .62, metalness: .1, roughness: .05 }));
+      m.userData = { a: i / 9 * 6.283, r: 6 + (i % 3) * 2.2, y: 1.6 + (i % 4) * 1.1, ph: Math.random() * 6, spin: 0 };
+      S.add(m); shards.push(m);
+    }
+    const pa = new Float32Array(900);
+    for (let i = 0; i < 900; i++) pa[i] = i % 3 === 1 ? Math.random() * 9 : (Math.random() - .5) * 34;
+    const pg = new T.BufferGeometry(); pg.setAttribute('position', new T.BufferAttribute(pa, 3));
+    const pts = new T.Points(pg, new T.PointsMaterial({ color: 0xbfe8ff, size: .06, transparent: true, opacity: .7 })); S.add(pts);
+
+    // Camera orbit
+    const cam = { yaw: .7, pitch: .5, dist: 15 }, ct = new T.Vector3(0, .8, 0);
+    function resize() {
+      const w = innerWidth, h = innerHeight; R.setSize(w, h, false); C.aspect = w / h;
+      if (w < 960) C.setViewOffset(w, h, 0, h * .2, w, h); else C.clearViewOffset();
+      C.updateProjectionMatrix();
+    }
+    addEventListener('resize', resize); resize();
+
+    let dn = null, flash = 0;
+    const rc = new T.Raycaster(), v2 = new T.Vector2();
+    cv.addEventListener('pointerdown', e => { dn = { x: e.clientX, y: e.clientY, m: 0 }; cv.setPointerCapture(e.pointerId); });
+    cv.addEventListener('pointermove', e => {
+      if (!dn) return;
+      const dx = e.clientX - dn.x, dy = e.clientY - dn.y; dn.m += Math.abs(dx) + Math.abs(dy); dn.x = e.clientX; dn.y = e.clientY;
+      cam.yaw -= dx * .006; cam.pitch = Math.min(1.35, Math.max(.12, cam.pitch + dy * .005));
+    });
+    cv.addEventListener('pointerup', e => {
+      if (dn && dn.m < 6) {
+        v2.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); rc.setFromCamera(v2, C);
+        const hit = rc.intersectObjects([robot].concat(shards, items), true)[0];
+        if (hit) {
+          let o = hit.object, isClaw = false;
+          while (o.parent && o.parent !== S) { if (o.userData.claw) isClaw = true; o = o.parent; }
+          if (o === robot) { if (isClaw) toggleClaw(); else { flash = 1; addLog('Beep beep! (3D robot)'); } } else if (o.userData.item) o.userData.vy = 4; else o.userData.spin = .4;
+        }
+      }
+      dn = null;
+    });
+    cv.addEventListener('wheel', e => { cam.dist = Math.min(24, Math.max(8, cam.dist + e.deltaY * .01)); }, { passive: true });
+
+    let v = 0, yr = 0, lastEngaged = null;
+    const clk = new T.Clock(), clampN = (x, a) => Math.max(-a, Math.min(a, x));
+    function loop() {
+      requestAnimationFrame(loop);
+      const dt = Math.min(clk.getDelta(), .05), t = clk.elapsedTime;
+      const vx = joy.x || pad.x, vy = joy.y || pad.y, k = engaged ? speed.value / 100 : 0;
+      const pv = v;
+      v += (vy * k * 7 - v) * Math.min(1, dt * 4);
+      yr += (-vx * k * 2.2 - yr) * Math.min(1, dt * 6);
+      robot.rotation.y += yr * dt;
+      robot.position.x += Math.sin(robot.rotation.y) * v * dt; robot.position.z += Math.cos(robot.rotation.y) * v * dt;
+      const d = Math.hypot(robot.position.x, robot.position.z);
+      if (d > 9.4) { robot.position.x *= 9.4 / d; robot.position.z *= 9.4 / d; }
+      wheels.forEach(w => { w.g.rotation.x += (v - w.s * yr * .9) * dt / .4; });
+      const acc = (v - pv) / Math.max(dt, .001);
+      rig.rotation.x += (clampN(-acc * .01, .12) - rig.rotation.x) * .1;
+      rig.rotation.z += (clampN(yr * v * .012, .1) - rig.rotation.z) * .1;
+      rig.position.y = engaged ? Math.sin(t * 40) * .004 * (1 + Math.abs(v)) : 0;
+      if (lastEngaged !== engaged) { lastEngaged = engaged; lampMat.color.setHex(engaged ? 0xfff2c9 : 0x334055); glow.intensity = engaged ? 1.5 : 0; }
+      flash = Math.max(0, flash - dt * 1.6);
+      head.intensity = (engaged ? 1.6 : 0) + flash * 4; if (flash > 0) lampMat.color.setHex(0xffffff);
+      else if (lastEngaged !== null && flash === 0) lampMat.color.setHex(engaged ? 0xfff2c9 : 0x334055);
+      clawA += ((clawOpen ? .55 : (held ? held.userData.grip : 0)) - clawA) * Math.min(1, dt * 6);
+      items.forEach(it => {
+        const u = it.userData;
+        if (u.held) { it.position.lerp(holdPos, .2); it.quaternion.slerp(qI, .2); return; }
+        if (u.vy !== 0 || it.position.y > u.h + .001) { u.vy -= 18 * dt; it.position.y += u.vy * dt; if (it.position.y <= u.h) { it.position.y = u.h; u.vy = 0; } }
+        const dx = it.position.x - robot.position.x, dz = it.position.z - robot.position.z, dd = Math.hypot(dx, dz);
+        if (dd > 0 && dd < 1.3) { it.position.x = robot.position.x + dx / dd * 1.3; it.position.z = robot.position.z + dz / dd * 1.3; }
+      });
+      claw.forEach(c => { c.g.rotation.y = c.s * clawA; });
+      shards.forEach(s => {
+        const u = s.userData; u.a += .0016; u.spin *= .96;
+        s.position.set(Math.cos(u.a) * u.r, u.y + Math.sin(t + u.ph) * .3, Math.sin(u.a) * u.r);
+        s.rotation.x += .004 + u.spin; s.rotation.y += .006 + u.spin;
+      });
+      pts.rotation.y += .0004; ring.scale.setScalar(1 + Math.sin(t * 2) * .006);
+      ct.lerp(new T.Vector3(robot.position.x, .8, robot.position.z), .06);
+      C.position.set(ct.x + Math.sin(cam.yaw) * Math.cos(cam.pitch) * cam.dist, ct.y + Math.sin(cam.pitch) * cam.dist, ct.z + Math.cos(cam.yaw) * Math.cos(cam.pitch) * cam.dist);
+      C.lookAt(ct); R.render(S, C);
+    }
+    loop();
+    return { setConn: on => antMat.color.setHex(on ? 0x6ff2d8 : 0xff7a6b), toggleClaw: toggleClaw };
+  }
+  // ── Login (nama dan password tetap) ──
+  const loginForm = $('loginForm'), userName = $('userName'), userPass = $('userPass'), loginErr = $('loginErr'),
+    showPass = $('showPass'), userPill = $('userPill'), logoutBtn = $('logoutBtn'), loginCard = document.querySelector('.login-card');
+  const SES = 'transporter.session', LOGIN_NAME = 'Admin', LOGIN_PASS = '12345';
+  function fail(msg) {
+    loginErr.textContent = msg; loginCard.classList.remove('shake'); void loginCard.offsetWidth; loginCard.classList.add('shake');
+  }
+  function enter(silent) {
+    try { sessionStorage.setItem(SES, LOGIN_NAME); } catch (e) {}
+    document.body.classList.remove('locked');
+    userPill.textContent = 'Hi, ' + LOGIN_NAME;
+    userName.value = userPass.value = ''; loginErr.textContent = '';
+    if (!silent) addLog('Logged in as ' + LOGIN_NAME + '.');
+  }
+  showPass.addEventListener('click', () => {
+    const show = userPass.type === 'password';
+    userPass.type = show ? 'text' : 'password'; showPass.textContent = show ? 'Hide' : 'Show';
+  });
+  const doLogin = () => {
+    const name = userName.value.trim(), pw = userPass.value;
+    if (!name || !pw) return fail('Please enter your name and password.');
+    if (name !== LOGIN_NAME || pw !== LOGIN_PASS) { userPass.value = ''; return fail('Wrong name or password.'); }
+    enter(false);
+  };
+  $('loginBtn').addEventListener('click', doLogin);
+  [userName, userPass].forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); }));
+  logoutBtn.addEventListener('click', () => {
+    if (connected) disconnectDevice();
+    try { sessionStorage.removeItem(SES); } catch (e) {}
+    document.body.classList.add('locked'); userName.focus();
+  });
+  (function () {
+    let s = null; try { s = sessionStorage.getItem(SES); } catch (e) {}
+    if (s === LOGIN_NAME) enter(true);
+  })();
+
+  scene3d = init3d();
+})();
+</script>
+</body>
+</html>
